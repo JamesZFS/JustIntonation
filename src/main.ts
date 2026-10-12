@@ -3,20 +3,21 @@ import {Instrument, type Timbre} from './audio';
 import {latticeNote,latticeOctave,pianoNote,black,type Tuning,type Note} from './tuning';
 import {allowsPitch,defaults,readSettings,writeSettings,type Scale,type Labels,type View} from './settings';
 import {dualEdges,dualFaces} from './dual';
+import {latticePosition,rotateBy} from './geometry';
 const savedSettings=readSettings();
 const icon=(name:string)=>({sound:'◖))',grid:'⬡',arrow:'↗',reset:'↺'}[name]||'');
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`
-<header><a class="brand" href="./" aria-label="Temper home"><span class="brand-symbol">◈</span> temper<span class="brand-dot">.</span></a><div class="edition">AN EXPLORATION IN PURE HARMONY</div><button id="help" class="text-button">How to play <span>↗</span></button></header>
+<header><a class="brand" href="./" aria-label="Temper home"><span class="brand-symbol">◈</span> temper<span class="brand-dot">.</span></a><div class="edition">AN EXPLORATION IN PURE HARMONY</div><button id="help" class="text-button">How to play <span><i class="axis-direction">↗</i></span></button></header>
 <main>
 <div class="intro"><div><div class="eyebrow"><span></span> THE JUST INTONATION STUDIO</div><h1>A little closer to <em>harmony.</em></h1><p>Pure ratios. Connected notes. A different way to play.</p></div><div class="tuning-tag"><span class="tiny-grid">✳</span><div><strong id="tuning-title">5-limit tuning</strong><span id="tuning-subtitle">Built on 2, 3 & 5</span></div></div></div>
 <section class="workspace" aria-label="Just intonation instrument">
 <div class="toolbar"><div class="view-tabs"><button class="selected" id="tonnetz-tab" aria-pressed="true" title="Hexagonal lattice">${icon('grid')} Tonnetz</button><button id="dual-view" aria-pressed="false" title="Notes, intervals, and major/minor chords">△ Dual lattice</button><span class="separator"></span><span class="view-subtitle">THE HARMONIC LATTICE</span></div><div class="toolbar-right"><label class="sound-select"><span class="control-caption">VOICE</span><select id="voice" aria-label="Sound voice"><option value="soft">Soft electric</option><option value="piano">Sampled piano</option><option value="saw">Analog saw</option><option value="organ">Organ</option><option value="sine">Pure sine</option></select></label><span class="separator"></span><label class="volume-control"><span aria-hidden="true">${icon('sound')}</span><input id="volume" type="range" min="0" max="100" value="65" aria-label="Volume"></label><button id="fullscreen" class="fullscreen-button" aria-pressed="false" title="Enter fullscreen">⛶ <span>Fullscreen</span></button></div></div>
-<div class="lattice-panel"><div class="canvas-meta"><span id="tuning-meta"><i></i> C-BASED · 5-LIMIT</span><span id="audio-status">READY TO PLAY</span></div><svg id="lattice" viewBox="0 0 1100 480" aria-label="Playable Tonnetz lattice"></svg><div class="axis-legend" id="axis-legend"><span>↑ <b>3/2</b> fifth</span><span>↖ <b>5/4</b> major third</span><span>↗ <b>6/5</b> minor third</span></div><div class="canvas-tools"><button id="zoom-out" aria-label="Zoom out">−</button><button id="reset-view" aria-label="Reset lattice view" title="Reset view to C4 (R)" aria-keyshortcuts="R">↺</button><button id="zoom-in" aria-label="Zoom in">+</button></div><div class="note-inspector" id="inspector">Explore a note <span>to see its pure ratio</span></div></div>
+<div class="lattice-panel"><div class="canvas-meta"><span id="tuning-meta"><i></i> C-BASED · 5-LIMIT</span><span id="audio-status">READY TO PLAY</span></div><svg id="lattice" viewBox="0 0 1100 480" aria-label="Playable Tonnetz lattice"></svg><div class="axis-legend" id="axis-legend"><span><i class="axis-direction">↑</i> <b>3/2</b> fifth</span><span><i class="axis-direction">↖</i> <b>5/4</b> major third</span><span><i class="axis-direction">↗</i> <b>6/5</b> minor third</span></div><div class="canvas-tools"><button id="rotate-left" aria-label="Rotate left 30 degrees" title="Rotate left 30°">↶</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="reset-view" aria-label="Reset lattice view" title="Reset view to C4 (R)" aria-keyshortcuts="R">↺</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="rotate-right" aria-label="Rotate right 30 degrees" title="Rotate right 30°">↷</button></div><div class="note-inspector" id="inspector">Explore a note <span>to see its pure ratio</span></div></div>
 <div class="settings-bar"><div class="tuning-selector" role="group" aria-label="Tuning system"><button id="tuning-ji" class="selected" aria-pressed="true" title="5-limit just intonation">JI</button><button id="tuning-tet" aria-pressed="false" title="12-tone equal temperament">12TET</button></div><div class="switch-group"><button id="sustain" class="switch on" role="switch" aria-checked="true"><span></span></button><label for="sustain">Sustain <kbd>SPACE</kbd></label></div><label class="release-control" title="Synthesized voices with sustain on. Piano uses its natural decay; pedal-off release is 100 ms.">Release <input id="release-length" type="range" min="0.1" max="12" step="0.1" value="5.5" aria-label="Release length" aria-describedby="release-hint"><output id="release-value" for="release-length">5.5 s</output></label><span id="release-hint" class="visually-hidden">Controls synthesized tails with sustain on. Piano samples use their natural decay. Pedal-off release stays at 100 milliseconds.</span><span class="separator"></span><label class="scale-control">Scale <select id="scale" aria-label="Scale"><option value="chromatic">Chromatic</option><option value="diatonic">Diatonic</option><option value="pentatonic">Pentatonic</option></select></label><span class="separator"></span><div class="switch-group"><button id="boundaries" class="switch" role="switch" aria-checked="false"><span></span></button><label for="boundaries">Octave borders</label></div><div class="switch-group"><button id="unfolded" class="switch" role="switch" aria-checked="false" title="Keep intervals ascending without octave folding"><span></span></button><label for="unfolded">Unfolded pitches</label></div><label class="labels-control">Labels <select id="labels" aria-label="Note labels"><option value="ratio">Note + octave + ratio</option><option value="octave" selected>Note + octave</option><option value="note">Note only</option><option value="none">Hidden</option></select></label></div>
 </section>
 <section class="keyboard-section" aria-label="Piano keyboard"><div class="keyboard-heading"><div><span class="eyebrow">THE KEYBOARD</span><span class="keyboard-caption">Same notes. Another perspective.</span></div><div class="keyboard-controls"><button id="octave-down" aria-label="Lower keyboard octave">←</button><span id="octave-range">C3 — C6</span><button id="octave-up" aria-label="Raise keyboard octave">→</button><button id="panic" class="text-button">Release all <span>↺</span></button></div></div><div id="keyboard" class="keyboard"></div><div class="keyboard-footer"><span><span class="key-dot held"></span> Playing <span class="key-dot sustained"></span> Sustaining <span class="key-dot resting"></span> At rest</span><span>Play with your mouse, touch, or <kbd>A</kbd>–<kbd>K</kbd> keys</span></div></section>
-<footer><button id="reset-settings" class="text-button" title="Restore all settings and the view to defaults">Reset settings <span>↺</span></button><button id="tuning-info" class="text-button">Why just intonation? <span>↗</span></button><span>A4 = <b id="a4-frequency">436.04 Hz</b> <span class="footer-dot">·</span> C4 = 261.63 Hz</span></footer>
+<footer><button id="reset-settings" class="text-button" title="Restore all settings and the view to defaults">Reset settings <span>↺</span></button><button id="tuning-info" class="text-button">Why just intonation? <span><i class="axis-direction">↗</i></span></button><span>A4 = <b id="a4-frequency">436.04 Hz</b> <span class="footer-dot">·</span> C4 = 261.63 Hz</span></footer>
 </main>
 <dialog id="info-dialog"><button id="close-dialog" aria-label="Close dialog">×</button><div class="eyebrow">A MORE NATURAL CONNECTION</div><h2 id="dialog-title"></h2><div id="dialog-body"></div></dialog>`;
 const instrument=new Instrument();
@@ -29,9 +30,9 @@ const groups=new Map<string,{ids:string[];label:string;el:Element}>();
 let tuning:Tuning=savedSettings.tuning;
 let scale:Scale=savedSettings.scale;
 let labelMode:Labels=savedSettings.labels;
-let borders=savedSettings.borders,keyboardOctave=savedSettings.keyboardOctave,zoom=savedSettings.zoom,panX=savedSettings.panX,panY=savedSettings.panY;
+let borders=savedSettings.borders,keyboardOctave=savedSettings.keyboardOctave,zoom=savedSettings.zoom,rotation=savedSettings.rotation,panX=savedSettings.panX,panY=savedSettings.panY;
 instrument.timbre=savedSettings.voice;instrument.sustain=savedSettings.sustain;instrument.volume=savedSettings.volume;instrument.releaseLength=savedSettings.releaseLength;
-function saveSettings(){writeSettings({unfolded,view,tuning,scale,sustain:instrument.sustain,borders,labels:labelMode,voice:instrument.timbre,volume:instrument.volume,releaseLength:instrument.releaseLength,keyboardOctave,zoom,panX,panY});}
+function saveSettings(){writeSettings({unfolded,view,tuning,scale,sustain:instrument.sustain,borders,labels:labelMode,voice:instrument.timbre,volume:instrument.volume,releaseLength:instrument.releaseLength,keyboardOctave,zoom,rotation,panX,panY});}
 const svg=document.querySelector<SVGSVGElement>('#lattice')!;
 const status=document.querySelector('#audio-status')!;
 instrument.onStatus=message=>{status.textContent=message;};
@@ -42,17 +43,18 @@ function octaveAt(q:number,r:number){return octaveMaps[unfolded?1:0].get(`${q}:$
 function label(note:Note){return labelMode==='none'?'':note.name+((labelMode==='octave'||labelMode==='ratio')?note.octave:'');}
 function register(note:Note,el:Element){notes.set(note.id,note);const list=elements.get(note.id)||[];list.push(el);elements.set(note.id,list);}
 function drawLattice(){
+  svg.dataset.rotation=String(rotation);svg.parentElement!.style.setProperty('--rotation',`${rotation}deg`);
   groups.clear();svg.parentElement!.classList.toggle('dual-mode',view==='dual');
   for(const id of [...elements.keys()])if(id.startsWith('l:')){elements.delete(id);}
   if(view==='dual'){drawDual();return;}
-  const radius=42*zoom;const height=Math.sqrt(3)*radius;
+  const radius=42*zoom;
   let content='';
   for(let q=-15;q<=15;q++)for(let r=-12;r<=12;r++){
-    const x=550+q*radius*1.5+panX,y=280+q*height/2-r*height+panY;
+    const {x,y}=latticePosition(q,r,radius,rotation,panX,panY);
     if(x < -radius || x>1100+radius || y < -radius || y>480+radius)continue;
     const note=latticeNote(q,r,tuning,unfolded);if(note.frequency<25||note.frequency>12000)continue;
     const gap=1.9;
-    const vertices=Array.from({length:6},(_,i)=>{const a=i*Math.PI/3;return [x+(radius-gap)*Math.cos(a),y+(radius-gap)*Math.sin(a)];});
+    const vertices=Array.from({length:6},(_,i)=>{const a=i*Math.PI/3+rotation*Math.PI/180;return [x+(radius-gap)*Math.cos(a),y+(radius-gap)*Math.sin(a)];});
     const points=vertices.map(v=>v.join(',')).join(' ');
     const neighbors=[[1,0],[0,-1],[-1,-1],[-1,0],[0,1],[1,1]];
     const edges=borders?neighbors.map(([dq,dr],i)=>{
@@ -66,10 +68,10 @@ function drawLattice(){
   svg.querySelectorAll<SVGGElement>('[data-id]').forEach(el=>{const [q,r]=el.dataset.id!.slice(2).split(':').map(Number);register(latticeNote(q,r,tuning,unfolded),el);});
 }
 function drawDual(){
-  const radius=42*zoom,height=Math.sqrt(3)*radius,circleRadius=19.2*zoom;
+  const radius=42*zoom,circleRadius=19.2*zoom;
   const cells=new Map<string,{note:Note;x:number;y:number}>();
   for(let q=-15;q<=15;q++)for(let r=-12;r<=12;r++){
-    const x=550+q*radius*1.5+panX,y=280+q*height/2-r*height+panY;
+    const {x,y}=latticePosition(q,r,radius,rotation,panX,panY);
     const note=latticeNote(q,r,tuning,unfolded);
     if(x < -radius||x>1100+radius||y < -radius||y>480+radius||note.frequency<25||note.frequency>12000)continue;
     cells.set(note.id,{note,x,y});notes.set(note.id,note);
@@ -245,7 +247,8 @@ function updateReleaseLabel(){document.querySelector('#release-value')!.textCont
 document.querySelector('#panic')!.addEventListener('click',panic);
 for(const [id,delta]of [['octave-down',-1],['octave-up',1]] as const)document.querySelector(`#${id}`)!.addEventListener('click',()=>{panic();keyboardOctave=Math.max(1,Math.min(5,keyboardOctave+delta));drawKeyboard();saveSettings();});
 for(const [id,delta]of [['zoom-out',-.15],['zoom-in',.15]] as const)document.querySelector(`#${id}`)!.addEventListener('click',()=>{zoom=Math.max(.65,Math.min(1.7,zoom+delta));drawLattice();saveSettings();});
-function resetView(){zoom=1;panX=panY=0;drawLattice();inspect(latticeNote(0,0,tuning,unfolded));saveSettings();}
+for(const [id,delta]of [['rotate-left',-30],['rotate-right',30]] as const)document.querySelector(`#${id}`)!.addEventListener('click',()=>{rotation=rotateBy(rotation,delta);drawLattice();saveSettings();});
+function resetView(){zoom=1;rotation=0;panX=panY=0;drawLattice();inspect(latticeNote(0,0,tuning,unfolded));saveSettings();}
 document.querySelector('#reset-view')!.addEventListener('click',resetView);
 function setTuning(next:Tuning){
   if(next===tuning)return;
@@ -262,7 +265,7 @@ function renderTuning(){
   document.querySelector('#tuning-subtitle')!.textContent=isJI?'Built on 2, 3 & 5':'12 equal semitones';
   document.querySelector('#tuning-meta')!.innerHTML=`<i></i> C-BASED · ${isJI?'5-LIMIT':'12TET'}`;
   document.querySelector('#a4-frequency')!.textContent=`${pianoNote(9,4,tuning).frequency.toFixed(2)} Hz`;
-  document.querySelector('#axis-legend')!.innerHTML=isJI?'<span>↑ <b>3/2</b> fifth</span><span>↖ <b>5/4</b> major third</span><span>↗ <b>6/5</b> minor third</span>':'<span>↑ <b>700¢</b> fifth</span><span>↖ <b>400¢</b> major third</span><span>↗ <b>300¢</b> minor third</span>';
+  document.querySelector('#axis-legend')!.innerHTML=isJI?'<span><i class="axis-direction">↑</i> <b>3/2</b> fifth</span><span><i class="axis-direction">↖</i> <b>5/4</b> major third</span><span><i class="axis-direction">↗</i> <b>6/5</b> minor third</span>':'<span><i class="axis-direction">↑</i> <b>700¢</b> fifth</span><span><i class="axis-direction">↖</i> <b>400¢</b> major third</span><span><i class="axis-direction">↗</i> <b>300¢</b> minor third</span>';
   inspect(latticeNote(0,0,tuning,unfolded));
 }
 function syncView(){for(const [id,selected]of [['tonnetz-tab',view==='hex'],['dual-view',view==='dual']] as const){const button=document.querySelector<HTMLButtonElement>(`#${id}`)!;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));}}
@@ -302,7 +305,7 @@ const dialog=document.querySelector<HTMLDialogElement>('#info-dialog')!;
 function showInfo(title:string,body:string){document.querySelector('#dialog-title')!.textContent=title;document.querySelector('#dialog-body')!.innerHTML=body;dialog.showModal();}
 document.querySelector('#close-dialog')!.addEventListener('click',()=>dialog.close());
 dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});
-document.querySelector('#help')!.addEventListener('click',()=>showInfo('Follow your ear.',`<p>Press and hold a hexagon or piano key. In Dual lattice mode, note circles play one note, small edge circles play two-note intervals, and triangles play major or minor chords. Intervals and chords are disabled if any member is outside the selected scale. Release it to let the note fade. Drag across notes for a glissando; use multiple fingers for chords.</p><p>On your computer, <b>A S D F G H J K</b> play the white keys from C4 (or the middle keyboard octave), and <b>W E T Y U</b> play the accidentals. Space toggles sustain. Escape releases all notes.</p><p>Scroll the lattice to explore farther notes. Use + and − to zoom, and ↺ or press <b>R</b> to return to C4. Switch between <b>JI</b> and <b>12TET</b> to compare pure ratios with equal semitones. Changing tuning releases sounding notes. Turn on octave borders to see where pitch registers change.</p><p>Choose a voice, hide the labels, or choose Chromatic, C major Diatonic, or C major Pentatonic (C, D, E, G, A). Release sets the synthesized tail length with sustain on; piano keeps its natural decay, and pedal-off release stays at 100 ms. Turn on Unfolded pitches for consistently ascending axes. Fullscreen hides the page header and gives the instrument the available screen; use Exit fullscreen or Escape to leave. Your settings and view are saved on this browser. Reset settings restores the defaults. The blue glow follows each released voice’s decay.</p>`));
+document.querySelector('#help')!.addEventListener('click',()=>showInfo('Follow your ear.',`<p>Press and hold a hexagon or piano key. In Dual lattice mode, note circles play one note, small edge circles play two-note intervals, and triangles play major or minor chords. Intervals and chords are disabled if any member is outside the selected scale. Release it to let the note fade. Drag across notes for a glissando; use multiple fingers for chords.</p><p>On your computer, <b>A S D F G H J K</b> play the white keys from C4 (or the middle keyboard octave), and <b>W E T Y U</b> play the accidentals. Space toggles sustain. Escape releases all notes.</p><p>Scroll the lattice to explore farther notes. Use + and − to zoom, and ↺ or press <b>R</b> to return to C4. Switch between <b>JI</b> and <b>12TET</b> to compare pure ratios with equal semitones. Changing tuning releases sounding notes. Turn on octave borders to see where pitch registers change.</p><p>Choose a voice, hide the labels, or choose Chromatic, C major Diatonic, or C major Pentatonic (C, D, E, G, A). Release sets the synthesized tail length with sustain on; piano keeps its natural decay, and pedal-off release stays at 100 ms. Turn on Unfolded pitches for consistently ascending axes. Fullscreen shows the lattice without the piano keyboard. The ↶ and ↷ buttons beside zoom rotate the lattice in 30° steps; R resets rotation and position; use Exit fullscreen or Escape to leave. Your settings and view are saved on this browser. Reset settings restores the defaults. The blue glow follows each released voice’s decay.</p>`));
 document.querySelector('#tuning-info')!.addEventListener('click',()=>showInfo('Harmony in whole numbers.',`<p>Just intonation tunes intervals with simple frequency ratios. A fifth is <b>3/2</b>, a major third is <b>5/4</b>, and a minor third is <b>6/5</b>. Five-limit tuning uses only powers of the primes 2, 3, and 5.</p><p>This lattice follows your reference: upward is a fifth, upper-left a major third, and upper-right a minor third, allowing octave shifts. Every cell is calculated from its lattice coordinates. With Unfolded pitches off, the pictured neighborhood shares octave 4 and rows beyond it extend to other octaves. With it on, every axis keeps its full interval: C4 → G4 → D5 → A5 going upward. Octave borders follow the chosen placement.</p><p>Pure intervals cannot close into a repeating twelve-note grid. Farther cells may share a name but differ by a small comma. The piano uses the twelve ratios in the central reference patch, including C♯ = 25/24 and G♯ = 25/16. Matching pitches light up together.</p><p>C4 is fixed at 261.6256 Hz, giving a pure A4 of 436.0426 Hz. In 12TET, C4 stays fixed, every semitone has ratio 2^(1/12), and A4 is 440 Hz. Piano samples are repitched to the selected tuning.</p><p><a href="https://en.wikipedia.org/wiki/Five-limit_tuning" target="_blank" rel="noreferrer">Read about five-limit tuning ↗</a></p>`));
 function syncControls(){
   for(const [id,value]of [['scale',scale],['labels',labelMode],['voice',instrument.timbre],['volume',String(instrument.volume*100)],['release-length',String(instrument.releaseLength)]])document.querySelector<HTMLInputElement|HTMLSelectElement>(`#${id}`)!.value=value;
@@ -314,7 +317,7 @@ function syncControls(){
 }
 document.querySelector('#reset-settings')!.addEventListener('click',()=>{
   panic();void exitImmersive();unfolded=defaults.unfolded;view=defaults.view;tuning=defaults.tuning;scale=defaults.scale;labelMode=defaults.labels;borders=defaults.borders;
-  keyboardOctave=defaults.keyboardOctave;zoom=defaults.zoom;panX=defaults.panX;panY=defaults.panY;
+  keyboardOctave=defaults.keyboardOctave;zoom=defaults.zoom;rotation=defaults.rotation;panX=defaults.panX;panY=defaults.panY;
   instrument.timbre=defaults.voice;instrument.setSustain(defaults.sustain);instrument.setVolume(defaults.volume);instrument.releaseLength=defaults.releaseLength;
   notes.clear();drawLattice();drawKeyboard();syncControls();saveSettings();status.textContent='DEFAULT SETTINGS RESTORED';
 });

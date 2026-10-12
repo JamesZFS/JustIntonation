@@ -16,12 +16,12 @@ Open http://localhost:5173. `npm run build` creates the static site in `dist/`; 
 - A S D F G H J K play white keys, W E T Y U play accidentals. O and L extend above the octave. The keyboard shortcuts follow the middle visible octave.
 - Space toggles sustain; Escape or Release all stops everything. A focused note can also be played with Enter or Space.
 - **Unfolded pitches** keeps every axis ascending without octave folding: C4 → G4 → D5 → A5 upward. Off (default) preserves the original placement. Octave borders adapt in both lattice views.
-- **Fullscreen** opens an immersive instrument layout with native fullscreen where supported and a layout fallback elsewhere. The header is hidden, controls stay available, and Exit fullscreen or Escape returns to the page. Fullscreen is entered by gesture rather than automatically restored on refresh.
-- Scroll the lattice to pan. Use +/− to zoom and ↺ or R to reset the initial view with C4 visible.
+- **Fullscreen** opens an immersive instrument layout with native fullscreen where supported and a layout fallback elsewhere. The header and piano keyboard are hidden, lattice controls stay available, and Exit fullscreen or Escape returns to the page. Fullscreen is entered by gesture rather than automatically restored on refresh.
+- Scroll the lattice to pan. Use +/− to zoom and ↶/↷ to rotate in 30° steps. ↺ or R resets zoom, rotation, and position with C4 visible.
 - Switch JI / 12TET to compare the exact 5-limit ratios with equal semitones. C4 remains fixed; A4 is 436.04 Hz in JI and 440 Hz in 12TET. Changing tuning releases sounding notes.
 - Sustain starts enabled. Choose Chromatic (default), C major Diatonic, or C major Pentatonic (C, D, E, G, A). Toggle octave borders, or the four label modes (note + octave + ratio, note + octave, note only, or hidden).
 
-Settings—including visualization mode, unfolded pitches, tuning, scale, voice, volume, release length, sustain, borders, labels, keyboard octave, and lattice pan/zoom—are saved in browser localStorage and restored on refresh. **Reset settings** in the footer restores every default, including the initial C4 view.
+Settings—including visualization mode, unfolded pitches, tuning, scale, voice, volume, release length, sustain, borders, labels, keyboard octave, and lattice pan/zoom/rotation—are saved in browser localStorage and restored on refresh. **Reset settings** in the footer restores every default, including the initial C4 view.
 
 ## Tuning
 
