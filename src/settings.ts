@@ -4,10 +4,10 @@ export type Scale = 'chromatic' | 'diatonic' | 'pentatonic';
 export type Labels = 'ratio' | 'octave' | 'note' | 'none';
 export interface Settings {
   tuning:Tuning; scale:Scale; sustain:boolean; borders:boolean; labels:Labels;
-  voice:Timbre; volume:number; keyboardOctave:number; zoom:number; panX:number; panY:number;
+  voice:Timbre; volume:number; releaseLength:number; keyboardOctave:number; zoom:number; panX:number; panY:number;
 }
 export const STORAGE_KEY='temper.settings.v1';
-export const defaults:Readonly<Settings>={tuning:'ji',scale:'chromatic',sustain:true,borders:false,labels:'octave',voice:'soft',volume:.65,keyboardOctave:3,zoom:1,panX:0,panY:0};
+export const defaults:Readonly<Settings>={tuning:'ji',scale:'chromatic',sustain:true,borders:false,labels:'octave',voice:'soft',volume:.65,releaseLength:5.5,keyboardOctave:3,zoom:1,panX:0,panY:0};
 export function allowsPitch(pc:number,scale:Scale):boolean {
   return scale==='chromatic'||(scale==='diatonic'?[0,2,4,5,7,9,11]:[0,2,4,7,9]).includes(pc);
 }
@@ -21,7 +21,7 @@ export function validateSettings(value:unknown):Settings {
     if(typeof candidate==='string'&&(choices[key] as readonly string[]).includes(candidate))Object.assign(result,{[key]:candidate});
   }
   for(const key of ['sustain','borders'] as const)if(typeof input[key]==='boolean')result[key]=input[key];
-  for(const [key,min,max]of [['volume',0,1],['keyboardOctave',1,5],['zoom',.65,1.7],['panX',-450,450],['panY',-350,350]] as const){
+  for(const [key,min,max]of [['volume',0,1],['releaseLength',.1,12],['keyboardOctave',1,5],['zoom',.65,1.7],['panX',-450,450],['panY',-350,350]] as const){
     const candidate=input[key];
     if(typeof candidate==='number'&&Number.isFinite(candidate)&&candidate>=min&&candidate<=max&&(key!=='keyboardOctave'||Number.isInteger(candidate)))result[key]=candidate;
   }

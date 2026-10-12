@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Audio envelope verification</title><style>body{font:16px system-ui;padding:32px}pre{white-space:pre-wrap}button{padding:10px}</style><h1>Audio envelope verification</h1><button id="run">Run offline audio checks</button><pre id="results">Ready</pre><script type="module">
+import {Instrument} from '../src/audio.ts';
+const rate=48000;
+const assert=(condition,message)=>{if(!condition)throw new Error(message);};
+async function render(timbre,sustain,actions=[],releaseLength=5.5){
+  const context=new OfflineAudioContext(1,rate,rate);
+  const instrument=new Instrument();instrument.context=context;
+  instrument.master=context.createGain();instrument.master.gain.value=.25;instrument.master.connect(context.destination);
+  instrument.timbre=timbre;instrument.sustain=sustain;instrument.releaseLength=releaseLength;
+  if(timbre==='piano'){
+    const sample=context.createBuffer(1,rate,rate),data=sample.getChannelData(0);
+    for(let i=0;i<data.length;i++)data[i]=Math.sin(2*Math.PI*261.6255653005986*i/rate)*Math.exp(-3*i/rate);
+    instrument.samples.set(60,sample);
+  }
+  instrument.attack('note',261.6255653005986);
+  let releaseTime;
+  const changes=actions.map(([time,action])=>context.suspend(time).then(async()=>{
+    if(action==='release'){releaseTime=context.currentTime;instrument.release('note');}
+    if(action==='retrigger')instrument.attack('note',261.6255653005986);
+    if(action==='stop')instrument.stop('note');
+    if(action==='pedal-off'){releaseTime=context.currentTime;instrument.setSustain(false);}
+    if(action==='panic')instrument.panic();
+    await context.resume();
+  }));
+  const buffer=await context.startRendering();await Promise.all(changes);
+  return {data:buffer.getChannelData(0),releaseTime};
+}
+function difference(a,b){let max=0;for(let i=0;i<a.length;i++)max=Math.max(max,Math.abs(a[i]-b[i]));return max;}
+function peak(data,start=0,end=data.length){let max=0;for(let i=start;i<end;i++)max=Math.max(max,Math.abs(data[i]));return max;}
+document.querySelector('#run').onclick=async()=>{
+  const output=document.querySelector('#results');output.textContent='Rendering…';const results=[];
+  try{
+    const held=await render('piano',true),released=await render('piano',true,[[.2,'release']]);
+    const diff=difference(held.data,released.data);
+    assert(diff<1e-7,`Piano note-off changed its natural envelope: ${diff}`);
+    results.push(`PASS Piano sustained note-off is sample-identical to a held note (difference ${diff})`);
+    for(const voice of ['piano','soft','saw','organ','sine']){
+      const result=await render(voice,false,[[.2,'release']]);
+      const end=Math.ceil((result.releaseTime+.1)*rate)+2;
+      assert(peak(result.data,end)<1e-7,`${voice} did not reach silence after 100 ms`);
+      assert(peak(result.data,Math.floor((result.releaseTime+.07)*rate),Math.floor((result.releaseTime+.08)*rate))>1e-4,`${voice} cut off before 100 ms`);
+      results.push(`PASS ${voice}: audible at 70–80 ms into release, silent by 100 ms`);
+    }
+    const gliding=await render('sine',true,[[.1,'release'],[.2,'retrigger'],[.25,'release'],[.3,'retrigger'],[.4,'panic']]);
+    let jump=0,jumpIndex=0;for(let i=1;i<gliding.data.length;i++){const step=Math.abs(gliding.data[i]-gliding.data[i-1]);if(step>jump){jump=step;jumpIndex=i;}}
+    assert(jump<.015,`Abrupt discontinuity during retriggers: ${jump} at ${jumpIndex/rate}s (${gliding.data[jumpIndex-1]} -> ${gliding.data[jumpIndex]})`);
+    results.push(`PASS Repeated retriggers and panic have no abrupt sample discontinuity (max step ${jump.toFixed(6)})`);
+    const shortTap=await render('sine',false,[[.004,'release']]);
+    assert(peak(shortTap.data,Math.ceil((shortTap.releaseTime+.1)*rate)+2)<1e-7,'Short tap did not stop');
+    results.push('PASS Note-off during the attack fades safely');
+    const pedal=await render('piano',true,[[.1,'release'],[.2,'pedal-off']]);
+    assert(peak(pedal.data,Math.ceil((pedal.releaseTime+.1)*rate)+2)<1e-7,'Pedal-off failed to damp piano tail');
+    results.push('PASS Turning the pedal off damps an existing piano tail in 100 ms');
+    const custom=await render('sine',true,[[.2,'release']],.3);
+    assert(peak(custom.data,Math.ceil((custom.releaseTime+.33)*rate)+2)<1e-7,'Custom release did not end at the selected length');
+    assert(peak(custom.data,Math.floor((custom.releaseTime+.05)*rate),Math.floor((custom.releaseTime+.06)*rate))>1e-4,'Custom release cut off early');
+    results.push('PASS Selected synth release length controls the rendered tail');
+    output.textContent=results.join('\n')+'\n\nAll 10 audio checks passed.';
+  }catch(error){output.textContent=results.join('\n')+'\nFAIL '+error.message;}
+};
+</script></html>

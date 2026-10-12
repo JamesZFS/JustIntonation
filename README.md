@@ -18,7 +18,7 @@ Open http://localhost:5173. `npm run build` creates the static site in `dist/`; 
 - Switch JI / 12TET to compare the exact 5-limit ratios with equal semitones. C4 remains fixed; A4 is 436.04 Hz in JI and 440 Hz in 12TET. Changing tuning releases sounding notes.
 - Sustain starts enabled. Choose Chromatic (default), C major Diatonic, or C major Pentatonic (C, D, E, G, A). Toggle octave borders, or the four label modes (note + octave + ratio, note + octave, note only, or hidden).
 
-Settings—including tuning, scale, voice, volume, sustain, borders, labels, keyboard octave, and lattice pan/zoom—are saved in browser localStorage and restored on refresh. **Reset settings** in the footer restores every default, including the initial C4 view.
+Settings—including tuning, scale, voice, volume, release length, sustain, borders, labels, keyboard octave, and lattice pan/zoom—are saved in browser localStorage and restored on refresh. **Reset settings** in the footer restores every default, including the initial C4 view.
 
 ## Tuning
 
@@ -45,10 +45,12 @@ An infinite pure lattice cannot be collapsed into twelve periodically repeating 
 
 ## Piano samples
 
-Five Salamander Grand Piano samples are bundled locally; playback rate is `targetHz / sampleHz`. Sampled notes therefore play at just-intonation frequencies. The samples have natural decay, including while held. Synth voices remain active while held and fade over 5.5 seconds with sustain, or 0.18 seconds without it.
+Five Salamander Grand Piano samples are bundled locally; playback rate is `targetHz / sampleHz`. Sampled notes therefore play at just-intonation frequencies. The samples have natural decay, including while held. With sustain enabled, sampled piano playback continues with its original natural decay after note-off; no extra gain envelope is applied. Synth voices remain active while held and fade over the selected release length with sustain (0.1–12 seconds, default 5.5 seconds). Changes apply to subsequent releases; existing tails finish smoothly. With the pedal off, all voices fade to silence over 100 ms. Retriggering allows released tails to overlap, and active voice replacement or Release all uses a short smooth fade to prevent abrupt cutoffs.
 
 Samples: [Salamander Grand Piano by Alexander Holm](https://github.com/tonejs/audio/tree/master/salamander), CC BY 3.0. See `public/samples/ATTRIBUTION.md`.
 
 Fonts are requested from Google Fonts, with system and Georgia fallbacks. No audio is transmitted; audio is rendered in the browser. The app uses native Web Audio so no audio library or external service is needed during playback.
 
 Tuning reference: [Five-limit tuning](https://en.wikipedia.org/wiki/Five-limit_tuning).
+
+To verify the audio envelopes with native browser rendering, open `http://localhost:5173/tests/audio.html` during development and click **Run offline audio checks**. The checks compare held and sustained piano waveforms, measure 100 ms releases for every voice, and check continuity during repeated retriggers, early note-off, and pedal changes.
