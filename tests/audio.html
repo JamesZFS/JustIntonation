@@ -15,7 +15,7 @@ async function render(timbre,sustain,actions=[],releaseLength=5.5){
   instrument.attack('note',261.6255653005986);
   let releaseTime;
   const changes=actions.map(([time,action])=>context.suspend(time).then(async()=>{
-    if(action==='release'){releaseTime=context.currentTime;instrument.release('note');}
+    if(action==='release'){instrument.release('note');releaseTime=instrument.voices.get('note').release;}
     if(action==='retrigger')instrument.attack('note',261.6255653005986);
     if(action==='stop')instrument.stop('note');
     if(action==='pedal-off'){releaseTime=context.currentTime;instrument.setSustain(false);}

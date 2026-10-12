@@ -58,8 +58,8 @@ export class Instrument {
     this.voices.set(id,{id,timbre:this.timbre,gain,sources,start:now,level,naturalEnd,end:naturalEnd});
   }
   private gainAt(voice:Voice,time:number):number {
-    if(voice.fadeStart!==undefined)return (voice.fadeGain??0)*Math.max(0,1-(time-voice.fadeStart)/(voice.fadeDuration??.1));
-    if(voice.release!==undefined&&voice.timbre!=='piano'){
+    if(voice.fadeStart!==undefined&&time>=voice.fadeStart)return (voice.fadeGain??0)*Math.max(0,1-(time-voice.fadeStart)/(voice.fadeDuration??.1));
+    if(voice.release!==undefined&&time>=voice.release&&voice.timbre!=='piano'){
       const elapsed=time-voice.release;
       const duration=voice.releaseDuration??5.5;
       if(elapsed>=duration)return .0001*Math.max(0,1-(elapsed-duration)/.03);
@@ -80,8 +80,7 @@ export class Instrument {
     voice.gain.gain.setValueAtTime(gain,now);
     return gain;
   }
-  private fade(voice:Voice,duration:number) {
-    const now=this.context!.currentTime;
+  private fade(voice:Voice,duration:number,now=this.context!.currentTime) {
     const currentTail=this.voiceTail(voice);
     const gain=this.holdGain(voice,now);
     // A linear fade reaches silence in 100 ms rather than dropping most of its
@@ -94,13 +93,14 @@ export class Instrument {
   release(id:string) {
     const voice=this.voices.get(id);const ctx=this.context;
     if(!voice||!ctx||voice.release!==undefined)return;
-    const releaseGain=this.gainAt(voice,ctx.currentTime);
-    voice.releaseGain=releaseGain;voice.release=ctx.currentTime;
-    if(!this.sustain){this.fade(voice,.1);return;}
+    // Let a very fast click finish its attack before beginning the release.
+    const now=Math.max(ctx.currentTime,voice.start+.02);
+    const releaseGain=this.gainAt(voice,now);
+    voice.releaseGain=releaseGain;voice.release=now;
+    if(!this.sustain){this.fade(voice,.1,now);return;}
     // Piano recordings already contain their decay: note-off with the pedal on
     // changes only the visual state, never the sample's gain or playback end.
     if(voice.timbre==='piano')return;
-    const now=ctx.currentTime;
     this.holdGain(voice,now);
     if(releaseGain<=0)voice.gain.gain.setValueAtTime(.0001,now);
     // Capture the selected length so later slider changes do not disturb tails.
@@ -114,10 +114,10 @@ export class Instrument {
     if(!this.context)return 0;
     const now=this.context.currentTime;
     if(voice.end!==undefined&&now>=voice.end)return 0;
-    if(voice.fadeStart!==undefined)return (voice.fadeLevel??1)*Math.max(0,1-(now-voice.fadeStart)/Math.max(.001,voice.end!-voice.fadeStart));
+    if(voice.fadeStart!==undefined)return (voice.fadeLevel??1)*Math.min(1,Math.max(0,1-(now-voice.fadeStart)/Math.max(.001,voice.end!-voice.fadeStart)));
     if(voice.naturalEnd!==undefined)return Math.exp(-6*(now-voice.start)/(voice.naturalEnd-voice.start));
     if(voice.release===undefined)return 1;
-    return Math.exp(-9*(now-voice.release)/(voice.releaseDuration??5.5));
+    return Math.min(1,Math.exp(-9*(now-voice.release)/(voice.releaseDuration??5.5)));
   }
   tail(id:string) {
     let level=0;

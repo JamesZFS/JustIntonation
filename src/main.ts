@@ -1,7 +1,8 @@
 import './style.css';
 import {Instrument, type Timbre} from './audio';
 import {latticeNote,pianoNote,black,type Tuning,type Note} from './tuning';
-import {allowsPitch,defaults,readSettings,writeSettings,type Scale,type Labels} from './settings';
+import {allowsPitch,defaults,readSettings,writeSettings,type Scale,type Labels,type View} from './settings';
+import {dualEdges,dualFaces} from './dual';
 const savedSettings=readSettings();
 const icon=(name:string)=>({sound:'◖))',grid:'⬡',arrow:'↗',reset:'↺'}[name]||'');
 const app=document.querySelector<HTMLDivElement>('#app')!;
@@ -10,7 +11,7 @@ app.innerHTML=`
 <main>
 <div class="intro"><div><div class="eyebrow"><span></span> THE JUST INTONATION STUDIO</div><h1>A little closer to <em>harmony.</em></h1><p>Pure ratios. Connected notes. A different way to play.</p></div><div class="tuning-tag"><span class="tiny-grid">✳</span><div><strong id="tuning-title">5-limit tuning</strong><span id="tuning-subtitle">Built on 2, 3 & 5</span></div></div></div>
 <section class="workspace" aria-label="Just intonation instrument">
-<div class="toolbar"><div class="view-tabs"><button class="selected" id="tonnetz-tab">${icon('grid')} Tonnetz</button><span class="separator"></span><span class="view-subtitle">THE HARMONIC LATTICE</span></div><div class="toolbar-right"><label class="sound-select"><span class="control-caption">VOICE</span><select id="voice" aria-label="Sound voice"><option value="soft">Soft electric</option><option value="piano">Sampled piano</option><option value="saw">Analog saw</option><option value="organ">Organ</option><option value="sine">Pure sine</option></select></label><span class="separator"></span><label class="volume-control"><span aria-hidden="true">${icon('sound')}</span><input id="volume" type="range" min="0" max="100" value="65" aria-label="Volume"></label></div></div>
+<div class="toolbar"><div class="view-tabs"><button class="selected" id="tonnetz-tab" aria-pressed="true" title="Hexagonal lattice">${icon('grid')} Tonnetz</button><button id="dual-view" aria-pressed="false" title="Notes, intervals, and major/minor chords">△ Dual lattice</button><span class="separator"></span><span class="view-subtitle">THE HARMONIC LATTICE</span></div><div class="toolbar-right"><label class="sound-select"><span class="control-caption">VOICE</span><select id="voice" aria-label="Sound voice"><option value="soft">Soft electric</option><option value="piano">Sampled piano</option><option value="saw">Analog saw</option><option value="organ">Organ</option><option value="sine">Pure sine</option></select></label><span class="separator"></span><label class="volume-control"><span aria-hidden="true">${icon('sound')}</span><input id="volume" type="range" min="0" max="100" value="65" aria-label="Volume"></label></div></div>
 <div class="lattice-panel"><div class="canvas-meta"><span id="tuning-meta"><i></i> C-BASED · 5-LIMIT</span><span id="audio-status">READY TO PLAY</span></div><svg id="lattice" viewBox="0 0 1100 480" aria-label="Playable Tonnetz lattice"></svg><div class="axis-legend" id="axis-legend"><span>↑ <b>3/2</b> fifth</span><span>↖ <b>5/4</b> major third</span><span>↗ <b>6/5</b> minor third</span></div><div class="canvas-tools"><button id="zoom-out" aria-label="Zoom out">−</button><button id="reset-view" aria-label="Reset lattice view" title="Reset view to C4 (R)" aria-keyshortcuts="R">↺</button><button id="zoom-in" aria-label="Zoom in">+</button></div><div class="note-inspector" id="inspector">Explore a note <span>to see its pure ratio</span></div></div>
 <div class="settings-bar"><div class="tuning-selector" role="group" aria-label="Tuning system"><button id="tuning-ji" class="selected" aria-pressed="true" title="5-limit just intonation">JI</button><button id="tuning-tet" aria-pressed="false" title="12-tone equal temperament">12TET</button></div><div class="switch-group"><button id="sustain" class="switch on" role="switch" aria-checked="true"><span></span></button><label for="sustain">Sustain <kbd>SPACE</kbd></label></div><label class="release-control" title="Synthesized voices with sustain on. Piano uses its natural decay; pedal-off release is 100 ms.">Release <input id="release-length" type="range" min="0.1" max="12" step="0.1" value="5.5" aria-label="Release length" aria-describedby="release-hint"><output id="release-value" for="release-length">5.5 s</output></label><span id="release-hint" class="visually-hidden">Controls synthesized tails with sustain on. Piano samples use their natural decay. Pedal-off release stays at 100 milliseconds.</span><span class="separator"></span><label class="scale-control">Scale <select id="scale" aria-label="Scale"><option value="chromatic">Chromatic</option><option value="diatonic">Diatonic</option><option value="pentatonic">Pentatonic</option></select></label><span class="separator"></span><div class="switch-group"><button id="boundaries" class="switch" role="switch" aria-checked="false"><span></span></button><label for="boundaries">Octave borders</label></div><label class="labels-control">Labels <select id="labels" aria-label="Note labels"><option value="ratio">Note + octave + ratio</option><option value="octave" selected>Note + octave</option><option value="note">Note only</option><option value="none">Hidden</option></select></label></div>
 </section>
@@ -20,20 +21,25 @@ app.innerHTML=`
 <dialog id="info-dialog"><button id="close-dialog" aria-label="Close dialog">×</button><div class="eyebrow">A MORE NATURAL CONNECTION</div><h2 id="dialog-title"></h2><div id="dialog-body"></div></dialog>`;
 const instrument=new Instrument();
 const notes=new Map<string,Note>();const elements=new Map<string,Element[]>();
-const held=new Map<string,Set<string>>();const pointers=new Map<number,string>();
+const attackTickets=new Map<string,symbol>();
+const held=new Map<string,Set<string>>();const pointers=new Map<number,{target:string;ids:string[]}>();
+let view:View=savedSettings.view;
+const groups=new Map<string,{ids:string[];label:string;el:Element}>();
 let tuning:Tuning=savedSettings.tuning;
 let scale:Scale=savedSettings.scale;
 let labelMode:Labels=savedSettings.labels;
 let borders=savedSettings.borders,keyboardOctave=savedSettings.keyboardOctave,zoom=savedSettings.zoom,panX=savedSettings.panX,panY=savedSettings.panY;
 instrument.timbre=savedSettings.voice;instrument.sustain=savedSettings.sustain;instrument.volume=savedSettings.volume;instrument.releaseLength=savedSettings.releaseLength;
-function saveSettings(){writeSettings({tuning,scale,sustain:instrument.sustain,borders,labels:labelMode,voice:instrument.timbre,volume:instrument.volume,releaseLength:instrument.releaseLength,keyboardOctave,zoom,panX,panY});}
+function saveSettings(){writeSettings({view,tuning,scale,sustain:instrument.sustain,borders,labels:labelMode,voice:instrument.timbre,volume:instrument.volume,releaseLength:instrument.releaseLength,keyboardOctave,zoom,panX,panY});}
 const svg=document.querySelector<SVGSVGElement>('#lattice')!;
 const status=document.querySelector('#audio-status')!;
 instrument.onStatus=message=>{status.textContent=message;};
 function label(note:Note){return labelMode==='none'?'':note.name+((labelMode==='octave'||labelMode==='ratio')?note.octave:'');}
 function register(note:Note,el:Element){notes.set(note.id,note);const list=elements.get(note.id)||[];list.push(el);elements.set(note.id,list);}
 function drawLattice(){
+  groups.clear();svg.parentElement!.classList.toggle('dual-mode',view==='dual');
   for(const id of [...elements.keys()])if(id.startsWith('l:')){elements.delete(id);}
+  if(view==='dual'){drawDual();return;}
   const radius=42*zoom;const height=Math.sqrt(3)*radius;
   let content='';
   for(let q=-15;q<=15;q++)for(let r=-12;r<=12;r++){
@@ -54,6 +60,70 @@ function drawLattice(){
   svg.innerHTML=content;
   svg.querySelectorAll<SVGGElement>('[data-id]').forEach(el=>{const [q,r]=el.dataset.id!.slice(2).split(':').map(Number);register(latticeNote(q,r,tuning),el);});
 }
+function drawDual(){
+  const radius=42*zoom,height=Math.sqrt(3)*radius,circleRadius=19.2*zoom;
+  const cells=new Map<string,{note:Note;x:number;y:number}>();
+  for(let q=-15;q<=15;q++)for(let r=-12;r<=12;r++){
+    const x=550+q*radius*1.5+panX,y=280+q*height/2-r*height+panY;
+    const note=latticeNote(q,r,tuning);
+    if(x < -radius||x>1100+radius||y < -radius||y>480+radius||note.frequency<25||note.frequency>12000)continue;
+    cells.set(note.id,{note,x,y});notes.set(note.id,note);
+  }
+  let faces='',edges='',circles='';
+  const contourNodes=new Map<string,{x:number;y:number;neighbors:Set<string>}>();
+  const pending=new Map<string,{ids:string[];label:string}>();
+  function groupAttributes(id:string,ids:string[],description:string){
+    const disabled=ids.some(id=>!allowsPitch(notes.get(id)!.pc,scale));
+    pending.set(id,{ids,label:description});
+    return `data-play="${id}" role="button" tabindex="${disabled?-1:0}" aria-disabled="${disabled}" aria-label="${description}" class="${disabled?'disabled':''}"`;
+  }
+  for(const {note,x,y}of cells.values()){
+    const q=note.q!,r=note.r!;
+    for(const face of dualFaces(q,r)){
+      const ids=face.vertices.map(([q,r])=>`l:${q}:${r}`);
+      if(ids.some(id=>!cells.has(id)))continue;
+      const vertices=ids.map(id=>cells.get(id)!);
+      const id=`chord:${face.quality}:${q}:${r}`;
+      const description=`${note.name}${note.octave} ${face.quality} chord: ${ids.map(id=>notes.get(id)!.name+notes.get(id)!.octave).join(', ')}`;
+      if(borders){
+        const crossings=vertices.flatMap((a,i)=>{
+          const b=vertices[(i+1)%3];
+          if(a.note.octave===b.note.octave)return [];
+          const key=[a.note.id,b.note.id].sort().join('|');
+          if(!contourNodes.has(key))contourNodes.set(key,{x:(a.x+b.x)/2,y:(a.y+b.y)/2,neighbors:new Set()});
+          return [key];
+        });
+        if(crossings.length===2){contourNodes.get(crossings[0])!.neighbors.add(crossings[1]);contourNodes.get(crossings[1])!.neighbors.add(crossings[0]);}
+      }
+      faces+=`<g ${groupAttributes(id,ids,description)}><title>${description}</title><polygon class="chord-region ${face.quality}" points="${vertices.map(v=>`${v.x},${v.y}`).join(' ')}"/></g>`;
+    }
+    for(const edge of dualEdges){
+      const other=cells.get(`l:${q+edge.delta[0]}:${r+edge.delta[1]}`);if(!other)continue;
+      const ids=[note.id,other.note.id],id=`interval:${q}:${r}:${edge.delta.join(':')}`;
+      const description=`${edge.name}: ${note.name}${note.octave}, ${other.note.name}${other.note.octave}`;
+      const cx=(x+other.x)/2,cy=(y+other.y)/2;
+      edges+=`<line class="dual-edge" x1="${x}" y1="${y}" x2="${other.x}" y2="${other.y}"/><g ${groupAttributes(id,ids,description)}><title>${description}</title><circle class="interval-hit" cx="${cx}" cy="${cy}" r="${11*zoom}"/><circle class="interval-circle" cx="${cx}" cy="${cy}" r="${5*zoom}"/></g>`;
+    }
+    circles+=`<g class="note-circle ${black.has(note.pc)?'accidental':''} ${!allowsPitch(note.pc,scale)?'disabled':''} ${q===0&&r===0?'root-note':''}" data-id="${note.id}" role="button" tabindex="${allowsPitch(note.pc,scale)?0:-1}" aria-disabled="${!allowsPitch(note.pc,scale)}" aria-label="${note.name}${note.octave}, ${note.frequency.toFixed(2)} hertz"><title>${note.name}${note.octave} · ${note.ratioLabel} · ${note.frequency.toFixed(2)} Hz</title><circle class="note-body" cx="${x}" cy="${y}" r="${circleRadius}"/><text x="${x}" y="${y+(labelMode==='ratio'?-3:5)}" text-anchor="middle">${label(note)}${labelMode==='ratio'?`<tspan class="circle-ratio" x="${x}" dy="12" textLength="${Math.min(note.ratioLabel.length*4.2,circleRadius*1.6)}" lengthAdjust="spacingAndGlyphs">${note.ratioLabel}</tspan>`:''}</text>${q===0&&r===0?`<circle class="root-dot" cx="${x}" cy="${y+17}" r="2"/>`:''}</g>`;
+  }
+  // Trace continuous octave contours across triangles through edge midpoints.
+  let contours='';const visited=new Set<string>();
+  const edgeKey=(a:string,b:string)=>[a,b].sort().join('~');
+  const starts=[...contourNodes.keys()].sort((a,b)=>contourNodes.get(a)!.neighbors.size-contourNodes.get(b)!.neighbors.size);
+  for(const start of starts){
+    let current=start;const points:string[]=[];
+    while(true){
+      const point=contourNodes.get(current)!;points.push(`${point.x},${point.y}`);
+      const next=[...point.neighbors].find(next=>!visited.has(edgeKey(current,next)));
+      if(!next)break;
+      visited.add(edgeKey(current,next));current=next;
+    }
+    if(points.length>1)contours+=`<polyline class="dual-octave-border" points="${points.join(' ')}"/>`;
+  }
+  svg.innerHTML=faces+contours+edges+circles;
+  svg.querySelectorAll<SVGGElement>('[data-id]').forEach(el=>register(cells.get(el.dataset.id!)!.note,el));
+  svg.querySelectorAll<SVGGElement>('[data-play]').forEach(el=>groups.set(el.dataset.play!,{...pending.get(el.dataset.play!)!,el}));
+}
 function drawKeyboard(){
   for(const id of [...elements.keys()])if(id.startsWith('p:')){elements.delete(id);}
   const keyboard=document.querySelector<HTMLDivElement>('#keyboard')!;keyboard.innerHTML='';
@@ -72,29 +142,77 @@ async function press(id:string,owner:string){
   const note=notes.get(id);if(!note||(!allowsPitch(note.pc,scale)))return;
   let owners=held.get(id);const alreadyHeld=!!owners?.size;if(!owners){owners=new Set();held.set(id,owners);}owners.add(owner);
   if(alreadyHeld)return;
+  const ticket=Symbol(id);attackTickets.set(id,ticket);
   const pressedOwners=owners;
   const pressedTuning=tuning;
   inspect(note);paint();
-  try{await instrument.init();if(instrument.timbre==='piano')await instrument.loadPiano();
-    if(tuning===pressedTuning&&held.get(id)===pressedOwners&&pressedOwners.size>0){instrument.attack(id,note.frequency);status.textContent='AUDIO ACTIVE';}
+  try{
+    if(!instrument.context||instrument.context.state!=='running')await instrument.init();
+    if(instrument.timbre==='piano'&&!instrument.samples.size)await instrument.loadPiano();
+    if(tuning===pressedTuning&&attackTickets.get(id)===ticket){
+      instrument.attack(id,note.frequency);status.textContent='AUDIO ACTIVE';
+      if(!pressedOwners.size)instrument.release(id);
+    }
   }catch{if(held.get(id)===pressedOwners)held.delete(id);paint();}
+  finally{if(attackTickets.get(id)===ticket)attackTickets.delete(id);}
 }
 function release(id:string,owner:string){const owners=held.get(id);owners?.delete(owner);if(owners&&!owners.size){held.delete(id);instrument.release(id);}}
 function inspect(note:Note){document.querySelector('#inspector')!.innerHTML=`<strong>${note.name}<small>${note.octave}</small></strong><span>${note.ratioLabel} <i>·</i> ${note.frequency.toFixed(2)} Hz</span>`;}
 function paint(){
   const sounding=[...instrument.voices.keys(),...held.keys()].map(id=>({note:notes.get(id),active:held.has(id),tail:instrument.tail(id)}));
+  const states=new Map<string,{on:boolean;tail:number}>();
   for(const [id,els]of elements){const note=notes.get(id)!;
     const matching=sounding.filter(s=>s.note&&Math.abs(s.note.frequency-note.frequency)<.01);
     const on=held.has(id)||matching.some(s=>s.active);const tail=Math.max(instrument.tail(id),...matching.map(s=>s.tail));
+    states.set(id,{on,tail});
     for(const el of els){el.classList.toggle('playing',on);el.classList.toggle('sustaining',!on&&tail>.003);(el as HTMLElement).style.setProperty('--tail',`${tail}`);}
   }
+  for(const {ids,el}of groups.values()){
+    const members=ids.map(id=>states.get(id)??{on:false,tail:0});
+    const on=members.every(m=>m.on),audible=members.every(m=>m.on||m.tail>.003);
+    el.classList.toggle('playing',on);el.classList.toggle('sustaining',!on&&audible);
+    (el as HTMLElement).style.setProperty('--tail',String(Math.min(...members.map(m=>m.on?1:m.tail))));
+  }
 }
-function panic(){held.clear();pointers.clear();instrument.panic();paint();}
-function noteAt(target:EventTarget|null){return target instanceof Element?target.closest<HTMLElement>('[data-id]')?.dataset.id:undefined;}
-app.addEventListener('pointerdown',e=>{const id=noteAt(e.target);if(id){e.preventDefault();pointers.set(e.pointerId,id);void press(id,`pointer:${e.pointerId}`);}});
-window.addEventListener('pointerup',e=>{const id=pointers.get(e.pointerId);if(id)release(id,`pointer:${e.pointerId}`);pointers.delete(e.pointerId);});
-window.addEventListener('pointercancel',e=>{const id=pointers.get(e.pointerId);if(id)release(id,`pointer:${e.pointerId}`);pointers.delete(e.pointerId);});
-app.addEventListener('pointermove',e=>{const id=noteAt(pointers.has(e.pointerId)?document.elementFromPoint(e.clientX,e.clientY):e.target);if(id)inspect(notes.get(id)!);if(pointers.has(e.pointerId)){const prev=pointers.get(e.pointerId)!;if(id!==prev){release(prev,`pointer:${e.pointerId}`);if(id){pointers.set(e.pointerId,id);void press(id,`pointer:${e.pointerId}`);}else pointers.set(e.pointerId,'');}}});
+function panic(){attackTickets.clear();held.clear();pointers.clear();instrument.panic();paint();}
+function noteAt(target:EventTarget|null){
+  const el=target instanceof Element?target.closest<HTMLElement>('[data-play],[data-id]'):null;
+  return el?.dataset.play??el?.dataset.id;
+}
+function targetNotes(target:string):string[]{
+  const ids=groups.get(target)?.ids??(notes.has(target)?[target]:[]);
+  return ids.every(id=>allowsPitch(notes.get(id)!.pc,scale))?ids:[];
+}
+function inspectTarget(target:string){
+  const group=groups.get(target);
+  if(group)document.querySelector('#inspector')!.innerHTML=`<strong>${group.label.split(':')[0]}</strong><span>${group.ids.map(id=>{const note=notes.get(id)!;return note.name+note.octave;}).join(' · ')}</span>`;
+  else if(notes.has(target))inspect(notes.get(target)!);
+}
+function pressTarget(target:string,owner:string){for(const id of targetNotes(target))void press(id,owner);inspectTarget(target);}
+app.addEventListener('pointerdown',e=>{
+  const target=noteAt(e.target);if(!target)return;
+  e.preventDefault();const ids=targetNotes(target);pointers.set(e.pointerId,{target,ids});
+  pressTarget(target,`pointer:${e.pointerId}`);
+});
+function releasePointer(pointerId:number){
+  const pointer=pointers.get(pointerId);
+  if(pointer)for(const id of pointer.ids)release(id,`pointer:${pointerId}`);
+  pointers.delete(pointerId);
+}
+window.addEventListener('pointerup',e=>releasePointer(e.pointerId));
+window.addEventListener('pointercancel',e=>releasePointer(e.pointerId));
+app.addEventListener('pointermove',e=>{
+  const target=noteAt(pointers.has(e.pointerId)?document.elementFromPoint(e.clientX,e.clientY):e.target);
+  if(target)inspectTarget(target);
+  const previous=pointers.get(e.pointerId);
+  if(previous&&target!==previous.target){
+    const ids=target?targetNotes(target):[],owner=`pointer:${e.pointerId}`;
+    // Keep common notes held while gliding from a chord to an adjacent interval.
+    for(const id of previous.ids)if(!ids.includes(id))release(id,owner);
+    for(const id of ids)if(!previous.ids.includes(id))void press(id,owner);
+    pointers.set(e.pointerId,{target:target??'',ids});if(target)inspectTarget(target);
+  }
+});
 window.addEventListener('blur',panic);
 const bindings:Record<string,number>={a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12,o:13,l:14};
 function editable(e:KeyboardEvent){return (e.target instanceof Element&&!!e.target.closest('input,select,dialog'))||e.ctrlKey||e.metaKey||e.altKey;}
@@ -103,7 +221,7 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Space'&&!noteAt(e.target)){e.preventDefault();document.querySelector<HTMLButtonElement>('#sustain')!.click();return;}
   if(e.key.toLowerCase()==='r'){e.preventDefault();resetView();return;}
   if(e.code==='Escape'){panic();return;}
-  if((e.code==='Enter'||e.code==='Space')&&noteAt(e.target)){e.preventDefault();void press(noteAt(e.target)!,`focus:${e.code}`);return;}
+  if((e.code==='Enter'||e.code==='Space')&&noteAt(e.target)){e.preventDefault();pressTarget(noteAt(e.target)!,`focus:${e.code}`);return;}
   const n=bindings[e.key.toLowerCase()];if(n!==undefined){e.preventDefault();void press(`p:${keyboardOctave+1+Math.floor(n/12)}:${n%12}`,`key:${e.code}`);}
 });
 window.addEventListener('keyup',e=>{for(const [id,owners]of held)if(owners.has(`key:${e.code}`)||owners.has(`focus:${e.code}`)){release(id,`key:${e.code}`);release(id,`focus:${e.code}`);}});
@@ -139,6 +257,10 @@ function renderTuning(){
   document.querySelector('#axis-legend')!.innerHTML=isJI?'<span>↑ <b>3/2</b> fifth</span><span>↖ <b>5/4</b> major third</span><span>↗ <b>6/5</b> minor third</span>':'<span>↑ <b>700¢</b> fifth</span><span>↖ <b>400¢</b> major third</span><span>↗ <b>300¢</b> minor third</span>';
   inspect(latticeNote(0,0,tuning));
 }
+function syncView(){for(const [id,selected]of [['tonnetz-tab',view==='hex'],['dual-view',view==='dual']] as const){const button=document.querySelector<HTMLButtonElement>(`#${id}`)!;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));}}
+function setView(next:View){if(next===view)return;view=next;drawLattice();syncView();saveSettings();}
+document.querySelector('#tonnetz-tab')!.addEventListener('click',()=>setView('hex'));
+document.querySelector('#dual-view')!.addEventListener('click',()=>setView('dual'));
 document.querySelector('#tuning-ji')!.addEventListener('click',()=>setTuning('ji'));
 document.querySelector('#tuning-tet')!.addEventListener('click',()=>setTuning('12tet'));
 svg.addEventListener('wheel',e=>{e.preventDefault();panX-=e.deltaX;panY-=e.deltaY;panX=Math.max(-450,Math.min(450,panX));panY=Math.max(-350,Math.min(350,panY));drawLattice();saveSettings();},{passive:false});
@@ -146,7 +268,7 @@ const dialog=document.querySelector<HTMLDialogElement>('#info-dialog')!;
 function showInfo(title:string,body:string){document.querySelector('#dialog-title')!.textContent=title;document.querySelector('#dialog-body')!.innerHTML=body;dialog.showModal();}
 document.querySelector('#close-dialog')!.addEventListener('click',()=>dialog.close());
 dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});
-document.querySelector('#help')!.addEventListener('click',()=>showInfo('Follow your ear.',`<p>Press and hold a hexagon or piano key. Release it to let the note fade. Drag across notes for a glissando; use multiple fingers for chords.</p><p>On your computer, <b>A S D F G H J K</b> play the white keys from C4 (or the middle keyboard octave), and <b>W E T Y U</b> play the accidentals. Space toggles sustain. Escape releases all notes.</p><p>Scroll the lattice to explore farther notes. Use + and − to zoom, and ↺ or press <b>R</b> to return to C4. Switch between <b>JI</b> and <b>12TET</b> to compare pure ratios with equal semitones. Changing tuning releases sounding notes. Turn on octave borders to see where pitch registers change.</p><p>Choose a voice, hide the labels, or choose Chromatic, C major Diatonic, or C major Pentatonic (C, D, E, G, A). Release sets the synthesized tail length with sustain on; piano keeps its natural decay, and pedal-off release stays at 100 ms. Your settings and view are saved on this browser. Reset settings restores the defaults. The blue glow follows each released voice’s decay.</p>`));
+document.querySelector('#help')!.addEventListener('click',()=>showInfo('Follow your ear.',`<p>Press and hold a hexagon or piano key. In Dual lattice mode, note circles play one note, small edge circles play two-note intervals, and triangles play major or minor chords. Intervals and chords are disabled if any member is outside the selected scale. Release it to let the note fade. Drag across notes for a glissando; use multiple fingers for chords.</p><p>On your computer, <b>A S D F G H J K</b> play the white keys from C4 (or the middle keyboard octave), and <b>W E T Y U</b> play the accidentals. Space toggles sustain. Escape releases all notes.</p><p>Scroll the lattice to explore farther notes. Use + and − to zoom, and ↺ or press <b>R</b> to return to C4. Switch between <b>JI</b> and <b>12TET</b> to compare pure ratios with equal semitones. Changing tuning releases sounding notes. Turn on octave borders to see where pitch registers change.</p><p>Choose a voice, hide the labels, or choose Chromatic, C major Diatonic, or C major Pentatonic (C, D, E, G, A). Release sets the synthesized tail length with sustain on; piano keeps its natural decay, and pedal-off release stays at 100 ms. Your settings and view are saved on this browser. Reset settings restores the defaults. The blue glow follows each released voice’s decay.</p>`));
 document.querySelector('#tuning-info')!.addEventListener('click',()=>showInfo('Harmony in whole numbers.',`<p>Just intonation tunes intervals with simple frequency ratios. A fifth is <b>3/2</b>, a major third is <b>5/4</b>, and a minor third is <b>6/5</b>. Five-limit tuning uses only powers of the primes 2, 3, and 5.</p><p>This lattice follows your reference: upward is a fifth, upper-left a major third, and upper-right a minor third, allowing octave shifts. Every cell is calculated from its lattice coordinates. The pictured neighborhood shares octave 4; rows beyond it extend to other octaves.</p><p>Pure intervals cannot close into a repeating twelve-note grid. Farther cells may share a name but differ by a small comma. The piano uses the twelve ratios in the central reference patch, including C♯ = 25/24 and G♯ = 25/16. Matching pitches light up together.</p><p>C4 is fixed at 261.6256 Hz, giving a pure A4 of 436.0426 Hz. In 12TET, C4 stays fixed, every semitone has ratio 2^(1/12), and A4 is 440 Hz. Piano samples are repitched to the selected tuning.</p><p><a href="https://en.wikipedia.org/wiki/Five-limit_tuning" target="_blank" rel="noreferrer">Read about five-limit tuning ↗</a></p>`));
 function syncControls(){
   for(const [id,value]of [['scale',scale],['labels',labelMode],['voice',instrument.timbre],['volume',String(instrument.volume*100)],['release-length',String(instrument.releaseLength)]])document.querySelector<HTMLInputElement|HTMLSelectElement>(`#${id}`)!.value=value;
@@ -154,10 +276,10 @@ function syncControls(){
     const button=document.querySelector<HTMLButtonElement>(`#${id}`)!;
     button.setAttribute('aria-checked',String(enabled));button.classList.toggle('on',enabled);
   }
-  renderTuning();updateReleaseLabel();
+  renderTuning();updateReleaseLabel();syncView();
 }
 document.querySelector('#reset-settings')!.addEventListener('click',()=>{
-  panic();tuning=defaults.tuning;scale=defaults.scale;labelMode=defaults.labels;borders=defaults.borders;
+  panic();view=defaults.view;tuning=defaults.tuning;scale=defaults.scale;labelMode=defaults.labels;borders=defaults.borders;
   keyboardOctave=defaults.keyboardOctave;zoom=defaults.zoom;panX=defaults.panX;panY=defaults.panY;
   instrument.timbre=defaults.voice;instrument.setSustain(defaults.sustain);instrument.setVolume(defaults.volume);instrument.releaseLength=defaults.releaseLength;
   notes.clear();drawLattice();drawKeyboard();syncControls();saveSettings();status.textContent='DEFAULT SETTINGS RESTORED';

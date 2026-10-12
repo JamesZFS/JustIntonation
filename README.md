@@ -11,6 +11,7 @@ Open http://localhost:5173. `npm run build` creates the static site in `dist/`; 
 
 ## Playing
 
+- Switch **Tonnetz / Dual lattice** above the canvas. The dual view uses note circles (one note), small edge circles (two-note intervals), and major/minor triangles (three-note chords). Chord and interval targets are disabled if any member falls outside the selected scale. Shared notes remain held when gliding between neighboring groups.
 - Hold hexagons or piano keys with a mouse or touch; drag for glissando and use multiple touches for chords.
 - A S D F G H J K play white keys, W E T Y U play accidentals. O and L extend above the octave. The keyboard shortcuts follow the middle visible octave.
 - Space toggles sustain; Escape or Release all stops everything. A focused note can also be played with Enter or Space.
@@ -18,7 +19,7 @@ Open http://localhost:5173. `npm run build` creates the static site in `dist/`; 
 - Switch JI / 12TET to compare the exact 5-limit ratios with equal semitones. C4 remains fixed; A4 is 436.04 Hz in JI and 440 Hz in 12TET. Changing tuning releases sounding notes.
 - Sustain starts enabled. Choose Chromatic (default), C major Diatonic, or C major Pentatonic (C, D, E, G, A). Toggle octave borders, or the four label modes (note + octave + ratio, note + octave, note only, or hidden).
 
-Settings—including tuning, scale, voice, volume, release length, sustain, borders, labels, keyboard octave, and lattice pan/zoom—are saved in browser localStorage and restored on refresh. **Reset settings** in the footer restores every default, including the initial C4 view.
+Settings—including visualization mode, tuning, scale, voice, volume, release length, sustain, borders, labels, keyboard octave, and lattice pan/zoom—are saved in browser localStorage and restored on refresh. **Reset settings** in the footer restores every default, including the initial C4 view.
 
 ## Tuning
 
@@ -54,3 +55,9 @@ Fonts are requested from Google Fonts, with system and Georgia fallbacks. No aud
 Tuning reference: [Five-limit tuning](https://en.wikipedia.org/wiki/Five-limit_tuning).
 
 To verify the audio envelopes with native browser rendering, open `http://localhost:5173/tests/audio.html` during development and click **Run offline audio checks**. The checks compare held and sustained piano waveforms, measure 100 ms releases for every voice, and check continuity during repeated retriggers, early note-off, and pedal changes.
+
+Dual-view interaction reference: [The Tonnetz](https://thetonnetz.com/). The dual uses the same lattice coordinates and exact note frequencies as the hexagonal view.
+
+## GitHub Pages
+
+The `.github/workflows/pages.yml` workflow tests, builds, and deploys the app on pushes to `master`. Enable **Settings → Pages → Source → GitHub Actions** in the repository. The workflow derives Vite's base path from the Pages configuration, so JavaScript, styles, and bundled piano samples resolve under the project's URL. You can also deploy manually from the Actions tab.
