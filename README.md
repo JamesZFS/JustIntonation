@@ -15,11 +15,13 @@ Open http://localhost:5173. `npm run build` creates the static site in `dist/`; 
 - Hold hexagons or piano keys with a mouse or touch; drag for glissando and use multiple touches for chords.
 - A S D F G H J K play white keys, W E T Y U play accidentals. O and L extend above the octave. The keyboard shortcuts follow the middle visible octave.
 - Space toggles sustain; Escape or Release all stops everything. A focused note can also be played with Enter or Space.
+- **Unfolded pitches** keeps every axis ascending without octave folding: C4 → G4 → D5 → A5 upward. Off (default) preserves the original placement. Octave borders adapt in both lattice views.
+- **Fullscreen** opens an immersive instrument layout with native fullscreen where supported and a layout fallback elsewhere. The header is hidden, controls stay available, and Exit fullscreen or Escape returns to the page. Fullscreen is entered by gesture rather than automatically restored on refresh.
 - Scroll the lattice to pan. Use +/− to zoom and ↺ or R to reset the initial view with C4 visible.
 - Switch JI / 12TET to compare the exact 5-limit ratios with equal semitones. C4 remains fixed; A4 is 436.04 Hz in JI and 440 Hz in 12TET. Changing tuning releases sounding notes.
 - Sustain starts enabled. Choose Chromatic (default), C major Diatonic, or C major Pentatonic (C, D, E, G, A). Toggle octave borders, or the four label modes (note + octave + ratio, note + octave, note only, or hidden).
 
-Settings—including visualization mode, tuning, scale, voice, volume, release length, sustain, borders, labels, keyboard octave, and lattice pan/zoom—are saved in browser localStorage and restored on refresh. **Reset settings** in the footer restores every default, including the initial C4 view.
+Settings—including visualization mode, unfolded pitches, tuning, scale, voice, volume, release length, sustain, borders, labels, keyboard octave, and lattice pan/zoom—are saved in browser localStorage and restored on refresh. **Reset settings** in the footer restores every default, including the initial C4 view.
 
 ## Tuning
 
@@ -40,7 +42,7 @@ C4 = 261.6255653 Hz. The central twelve-note patch uses:
 | B♭ | 9/5 |
 | B | 15/8 |
 
-Flat-top hexagon coordinates `(q, r)` map to `(4/5)^q × (3/2)^r`, with octave shifts. Up is 3/2, upper-left is 5/4 (major third), upper-right is 6/5. The central patch has octave 4, with successive four-row bands extending registers. Note spelling follows lattice interval steps, preserving comma variants rather than forcing them to an equal-tempered pitch class. Exact rational labels are calculated from integer prime exponents.
+Flat-top hexagon coordinates `(q, r)` map to `(4/5)^q × (3/2)^r`, with octave shifts. Up is 3/2, upper-left is 5/4 (major third), upper-right is 6/5. With Unfolded pitches off, the central patch has octave 4, with successive four-row bands extending registers. With it on, the frequency is C4 × (4/5)^q × (3/2)^r in JI, or C4 × 2^((-4q+7r)/12) in 12TET. Named octave membership is precomputed from the lattice interval steps, preserving comma variants in JI. Note spelling follows lattice interval steps, preserving comma variants rather than forcing them to an equal-tempered pitch class. Exact rational labels are calculated from integer prime exponents.
 
 An infinite pure lattice cannot be collapsed into twelve periodically repeating pitch classes. Outside the reference patch, identical note names may differ by commas. The piano repeats the central twelve ratios through octaves; the two views light up together only when frequencies actually match.
 

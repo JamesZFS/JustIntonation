@@ -5,7 +5,10 @@ export const ratios = [1, 25/24, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 25/16, 5/3, 9/5
 export const black = new Set([1, 3, 6, 8, 10]);
 export type Tuning = 'ji' | '12tet';
 export interface Note { id:string; name:string; octave:number; frequency:number; ratio:number; pc:number; ratioLabel:string; q?:number; r?:number }
-export function latticeNote(q:number, r:number, tuning:Tuning='ji'): Note {
+export function latticeOctave(q:number,r:number,unfolded=false):number {
+  return 4+Math.floor(unfolded?(-4*q+7*r)/12:(r+1)/4);
+}
+export function latticeNote(q:number, r:number, tuning:Tuning='ji', unfolded=false): Note {
   const raw = (4/5)**q * (3/2)**r;
   const semitones = -4*q+7*r;
   const fold = Math.floor(semitones/12);
@@ -17,9 +20,9 @@ export function latticeNote(q:number, r:number, tuning:Tuning='ji'): Note {
     else denominator*=BigInt(prime)**BigInt(-exponent);
   }
   const ratioLabel=tuning==='12tet' ? (pc===0?'1/1':`2^(${pc}/12)`) : `${numerator}/${denominator}`;
-  // A spatial octave lift keeps the pictured twelve-note neighborhood in octave 4.
-  // All lattice intervals remain exact modulo powers of two.
-  const octave = 4 + Math.floor((r+1)/4);
+  // Unfolded pitches retain the full interval walk; the original placement
+  // keeps the reference patch in octave 4 with spatial register bands.
+  const octave = latticeOctave(q,r,unfolded);
   return { id:`l:${q}:${r}`, name:names[pc], octave, frequency:C4*ratio*2**(octave-4), ratio, ratioLabel, pc, q, r };
 }
 export function pianoNote(pc:number, octave:number, tuning:Tuning='ji'): Note {

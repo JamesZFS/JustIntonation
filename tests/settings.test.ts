@@ -8,7 +8,7 @@ test('scale membership gates the intended pitch classes',()=>{
   assert.deepEqual(pitches.filter(pc=>allowsPitch(pc,'pentatonic')),[0,2,4,7,9]);
 });
 test('valid stored settings survive a JSON round trip',()=>{
-  const settings={view:'dual',tuning:'12tet',scale:'pentatonic',sustain:false,borders:true,labels:'ratio',voice:'organ',volume:.35,releaseLength:2.3,keyboardOctave:4,zoom:1.3,panX:100,panY:-60};
+  const settings={view:'dual',unfolded:true,tuning:'12tet',scale:'pentatonic',sustain:false,borders:true,labels:'ratio',voice:'organ',volume:.35,releaseLength:2.3,keyboardOctave:4,zoom:1.3,panX:100,panY:-60};
   assert.deepEqual(validateSettings(JSON.parse(JSON.stringify(settings))),settings);
 });
 test('invalid stored settings fall back safely while preserving valid fields',()=>{

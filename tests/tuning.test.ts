@@ -32,3 +32,15 @@ test('12TET lattice agrees with the piano and has tempered axes',()=>{
   }
  }
 });
+test('unfolded upward walk uses ascending fifths and natural note octaves',()=>{
+ const expected=[['C',4],['G',4],['D',5],['A',5],['E',6]];
+ expected.forEach(([name,octave],r)=>{const note=latticeNote(0,r,'ji',true);assert.equal(note.name,name);assert.equal(note.octave,octave);assert.ok(Math.abs(note.frequency/latticeNote(0,0,'ji',true).frequency-(3/2)**r)<1e-10);});
+});
+test('all unfolded axes ascend by exact intervals without octave reduction',()=>{
+ for(let q=-6;q<=6;q++)for(let r=-6;r<=6;r++)for(const [dq,dr,ratio,semitones]of [[0,1,3/2,7],[-1,0,5/4,4],[1,1,6/5,3]]){
+  const a=latticeNote(q,r,'ji',true),b=latticeNote(q+dq,r+dr,'ji',true);
+  assert.ok(Math.abs(b.frequency/a.frequency-ratio)<1e-10);
+  const etA=latticeNote(q,r,'12tet',true),etB=latticeNote(q+dq,r+dr,'12tet',true);
+  assert.ok(Math.abs(etB.frequency/etA.frequency-2**(semitones/12))<1e-10);
+ }
+});
