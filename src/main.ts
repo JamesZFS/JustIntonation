@@ -213,6 +213,8 @@ app.addEventListener('pointermove',e=>{
     pointers.set(e.pointerId,{target:target??'',ids});if(target)inspectTarget(target);
   }
 });
+// Suppress long-press menus and selection only on the playing surfaces.
+for(const event of ['contextmenu','selectstart'] as const)app.addEventListener(event,e=>{if(e.target instanceof Element&&e.target.closest('.lattice-panel,#keyboard'))e.preventDefault();});
 window.addEventListener('blur',panic);
 const bindings:Record<string,number>={a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12,o:13,l:14};
 function editable(e:KeyboardEvent){return (e.target instanceof Element&&!!e.target.closest('input,select,dialog'))||e.ctrlKey||e.metaKey||e.altKey;}

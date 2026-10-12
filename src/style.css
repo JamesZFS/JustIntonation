@@ -21,3 +21,12 @@
 .dual-mode .canvas-meta span{background:#243029ed;padding:4px 6px;border-radius:4px}.dual-mode .axis-legend{background:#243029ed;padding:6px 8px;border-radius:4px}
 
 .dual-octave-border{fill:none;stroke:#e8e8cf;stroke-width:4;stroke-dasharray:9 7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+/* Keep playing gestures from selecting labels or opening iOS touch callouts. */
+.workspace, .workspace *, .keyboard-section, .keyboard-section * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+#lattice, #lattice *, #keyboard, #keyboard * {
+  -webkit-user-drag: none;
+}
